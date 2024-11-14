@@ -10,31 +10,29 @@ let leftPressed = false;
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-//karakteristike platforme
-//let platformHeight = canvas.height / 45;
-//let platformWidth = canvas.width / 10;
-//let platformX = (canvas.width - platformWidth) / 2;
-//platformY = canvas.height - platformHeight * 2;
-
-let platformHeight = 139;
-let platformWidth = 328;
+//karakteristike platforme 
+let platformHeight = canvas.height / 45;
+let platformWidth = canvas.width / 10;
 let platformX = (canvas.width - platformWidth) / 2;
-platformY = canvas.height - platformHeight;
+platformY = canvas.height - platformHeight * 2;
 
-//karakteristike lopte
-const ballRadius = canvas.width * 0.005;
-let ballSpeedY = - Math.floor(Math.random() * 9 + 1);
+//karakteristike lopte, lopta se na početku uvijek kreće prema gore, nasumično lijevo ili desno pod nekim kutem, Y brzina nikad nije 0, brzina je rekao bih poštena
+//ako veličina prozora nije premala
+const ballRadius = canvas.width * 0.0077;
+const diagonalOffset = ballRadius / Math.sqrt(2);
 let leftOrRight = Math.floor(Math.random() * 2);
 if (leftOrRight == 0) leftOrRight = -1;
 else leftOrRight = 1;
-let ballSpeedX = leftOrRight * Math.sqrt(81 - ballSpeedY ** 2);
+
+let ballSpeedX = leftOrRight * (Math.random() * 8);
+let ballSpeedY = - Math.abs((Math.sqrt(81 - ballSpeedX ** 2)));
 let ballX = canvas.width / 2;
 let ballY = canvas.height - platformHeight * 2 - ballRadius;
 
-//karakteristike cigli
+//karakteristike cigli 
 const brickRowNo = 3;
 const brickColumnNo = 10;
-let brickPadding = canvas.width * 0.01;
+let brickPadding = canvas.width * 0.0055;
 let brickWidth = (canvas.width - brickPadding * 2 - brickPadding * (brickColumnNo - 1)) / brickColumnNo;
 let brickHeight = canvas.height * 0.05;
 let brickOffsetTop = 100;
@@ -48,12 +46,18 @@ for (let i = 0; i < brickColumnNo; i++) {
     }
 }
 
+//zastavica za koliziju s ciglom, bio je problem kad bi loptica dotaknula 2 cigle istovremeno pa bi se samo nastavila kretati u istom smjeru jer 
+//bi brzina dvaput promijenila predznak  
+let collisionFlag = false;
+
 let currentScore = 0;
 let highScore = localStorage.getItem("highScore") ? parseInt(localStorage.getItem("highScore")) : 0;
 
+//varijabla za detekciju kraja igre
 let gameOver = false;
 let message = "_";
 
+//funkcije za događaje s strelicama i spacebarom
 function keyDownHandler(event) {
     if (event.key === "Right" || event.key === "ArrowRight") {
         rightPressed = true;
@@ -72,17 +76,22 @@ function keyUpHandler(event) {
     }
   }
 
+//crtanje platforme
 function drawPlatform() {
     ctx.beginPath();
     ctx.rect(platformX, platformY, platformWidth, platformHeight);
     ctx.fillStyle = "red";
     ctx.shadowColor = "red";
-    ctx.shadowBlur = 5;
+    ctx.shadowBlur = 10;
     ctx.fill();
     ctx.closePath();
 }
 
+//crtanje lopte
 function drawBall() {
+    ctx.shadowBlur = 0; 
+    ctx.shadowColor = "transparent";
+
     ctx.beginPath();
     ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
     ctx.fillStyle = "#0099dd";
@@ -90,6 +99,7 @@ function drawBall() {
     ctx.closePath();
 }
 
+//crtanje cigli
 function drawBricks() {
     for (let i = 0; i < brickColumnNo; i++) {
         for (let j = 0; j < brickRowNo; j++) {
@@ -100,9 +110,18 @@ function drawBricks() {
                 bricks[i][j].y = brickyY;
                 ctx.beginPath();
                 ctx.rect(brickX, brickyY, brickWidth, brickHeight);
-                ctx.fillStyle = "red";
-                ctx.shadowColor = "green";
-                ctx.shadowBlur = 5;
+
+                if (j == 0) {
+                  ctx.fillStyle = "red";
+                  ctx.shadowColor = "red";
+                } else if (j == 1) {
+                  ctx.fillStyle = "yellow";
+                  ctx.shadowColor = "yellow";
+                } else {
+                  ctx.fillStyle = "green";
+                  ctx.shadowColor = "green";
+                }
+                ctx.shadowBlur = 10;
                 ctx.fill();
                 ctx.closePath();
             }
@@ -110,6 +129,7 @@ function drawBricks() {
     }
 }
 
+//crtanje bodova
 function drawScores() {
   ctx.font = "16px Arial";
   ctx.fillStyle = "white";
@@ -118,6 +138,7 @@ function drawScores() {
   ctx.fillText(`High Score: ${highScore}`, canvas.width - 10, 40);
 }
 
+//mijenjanje broja bodova i spremanje u localStorage ako je novi highScore
 function updateScore() {
   currentScore++;
   
@@ -125,12 +146,9 @@ function updateScore() {
     highScore = currentScore;
     localStorage.setItem("highScore", highScore);
   }
-  
-  if (currentScore == brickColumnNo * brickRowNo) {
-
-  }
 }
 
+//crtanje poruke na kraju
 function drawMessage() {
   ctx.font = "70px Arial"; 
   ctx.fillStyle = "red";
@@ -145,6 +163,7 @@ function drawMessage() {
   message = "_";
 }
 
+//funkcije za gubitak i pobjedu
 function lose() {
   gameOver = true;
   message = "GAME OVER";
@@ -155,6 +174,7 @@ function win() {
   message = "YOU WIN";
 }
 
+//funkcija za detektiranje kolizije loptice s rubom platna
 function canvasCollision() {
   if (ballX + ballRadius >= canvas.width || ballX - ballRadius <= 0) {
     ballSpeedX = -ballSpeedX;
@@ -162,57 +182,86 @@ function canvasCollision() {
   if (ballY - ballRadius < 0) {
     ballSpeedY = -ballSpeedY;
   }
+  if (ballX - ballRadius < 0) { // znala je loptica proći kroz lijevi ili desni rub pa bi zapela tamo, ovime se izbavi iz ruba
+    ballX += ballRadius;
+  }
+  if (ballX + ballRadius > canvas.width) {
+    ballX -= ballRadius;
+  }
 }
 
+//funkcija za detektiranje kolizije loptice s platformom, ako točke loptice na 135, 180 i 225 stupnjeva udare u platformu, loptica se odbije prema gore,
+//ako točke na 0 i 180 stupnjeva udare u platformu loptici se promjeni x brzina i nastavi u dno ekrana
 function platformCollision() {
-    if (ballY + ballRadius > platformY && ballY + ballRadius < platformY + Math.abs(ballSpeedY) + 1 &&
-        ballX > platformX && ballX < platformX + platformWidth) {
-          if (ballX < platformX + platformWidth / 2) {
-            ballSpeedX = -Math.floor(Math.random() * 8);
-          }
-          else {
-            ballSpeedX = Math.floor(Math.random() * 8);
-          }  
-          ballSpeedY = -Math.floor(Math.sqrt(81 - ballSpeedX ** 2));
-        }
-    else if (ballY > platformY && ballY < platformY + platformHeight && (
-      ((ballX + ballRadius > platformX) && (ballX < platformX)) || ((ballX - ballRadius < platformX + platformWidth) && (ballX > platformX + platformWidth)))){
-        ballSpeedX = -ballSpeedX;
-    }
-}
+  let leftBotX = ballX - diagonalOffset;
+  let leftBotY = ballY - diagonalOffset;
+  let rightBotX = ballX + diagonalOffset;
+  let rightBotY = ballY + diagonalOffset;
 
+  if ((ballY + ballRadius > platformY &&
+    ballY + ballRadius < platformY + Math.abs(ballSpeedY) + 1 &&
+    ballX > platformX &&
+    ballX < platformX + platformWidth) ||
+    (leftBotY > platformY &&
+    leftBotY < platformY + Math.abs(ballSpeedY) + 1 &&
+    leftBotX > platformX &&
+    leftBotX < platformX + platformWidth) || 
+    (rightBotY > platformY &&
+    rightBotY < platformY + Math.abs(ballSpeedY) + 1 &&
+    rightBotX > platformX &&
+    rightBotX < platformX + platformWidth)) {
+    if (ballX < platformX + platformWidth / 2) {
+      ballSpeedX = -(Math.random() * 8);
+    }
+    else {
+      ballSpeedX = (Math.random() * 8);
+    }  
+    ballSpeedY = -(Math.sqrt(81 - ballSpeedX ** 2));
+  }
+  else if (ballY > platformY && ballY < platformY + platformHeight && (
+    ((ballX + ballRadius > platformX) && (ballX < platformX)) || ((ballX - ballRadius < platformX + platformWidth) && (ballX > platformX + platformWidth)))){
+      ballSpeedX = -ballSpeedX;
+  }
+}
+ 
+//funkcija za detektiranje kolizije loptice s ciglama, za svaku se ciglu koja nije uništena provjerava je li u koliziji s loptom, i ako je s koje strance cigle,
+//pa ako je s gornje ili donje, y brzini se mijenja predznak, ako je sa strane, onda x brzini
 function brickCollision() {
   for (let i = 0; i < brickColumnNo; i++) {
     for (let j = 0; j < brickRowNo; j++) {
       let brick = bricks[i][j];
       
       if (brick.status === 1) {
-        if (ballX + ballRadius > brick.x &&
-          ballX - ballRadius < brick.x + brickWidth &&
-          ballY + ballRadius > brick.y &&
-          ballY - ballRadius < brick.y + brickHeight) {      
-            
-            let ballPositionTop = Math.abs(ballY + ballRadius - brick.y);
-            let ballPostionBottom = Math.abs(ballY - ballRadius - brick.y - brickHeight);
-            let ballPositionLeft = Math.abs(ballX + ballRadius - brick.x);
-            let ballPositionRight = Math.abs(ballX - ballRadius - brick.x - brickWidth);
-            
-            if(ballPositionTop < ballPositionLeft && ballPositionTop < ballPositionRight) {
-              ballSpeedY = -ballSpeedY;
-            } else if (ballPostionBottom < ballPositionLeft && ballPostionBottom < ballPositionRight) {
-              ballSpeedY = -ballSpeedY;
-            } else {
-              ballSpeedX = -ballSpeedX;
-            }
-            
+        let closestX = Math.max(brick.x, Math.min(ballX, brick.x + brickWidth));
+        let closestY = Math.max(brick.y, Math.min(ballY, brick.y + brickHeight));
+
+        let distanceX = ballX - closestX;
+        let distanceY = ballY - closestY;
+        let distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+        if (distanceSquared < ballRadius * ballRadius && !collisionFlag) {
+          if (Math.abs(distanceX) > Math.abs(distanceY)) {
+            ballSpeedX = -ballSpeedX;
+          } else {
+            ballSpeedY = -ballSpeedY;
+          }
             brick.status = 0; 
             updateScore(); 
+
+            collisionFlag = true;
+            return;
         }
       }
     }
   }
 }
 
+//reset zastavice za koliziju s ciglom
+function resetCollisionFlag() {
+    collisionFlag = false; 
+}
+
+//funkcija za kretanje platforme i mijenjanje pozicije lopte
 function movement() {
     if(rightPressed && platformX < canvas.width - platformWidth) {
         platformX += 15;
@@ -222,12 +271,9 @@ function movement() {
 
     ballX += ballSpeedX;
     ballY += ballSpeedY;
-
-    if (ballY >= canvas.height) {
-
-    }
 }
 
+//funkcija koja postavlja sve na početne pozicije
 function reset() {
   gameOver = false;
   currentScore = 0;
@@ -236,18 +282,14 @@ function reset() {
   platformX = (canvas.width - platformWidth) / 2;
   platformY = canvas.height - platformHeight * 2;
 
-  ballSpeedY = - Math.floor(Math.random() * 9 + 1);
   leftOrRight = Math.floor(Math.random() * 2);
   if (leftOrRight == 0) leftOrRight = -1;
   else leftOrRight = 1;
-  ballSpeedX = leftOrRight * Math.sqrt(81 - ballSpeedY ** 2);
+  ballSpeedX = leftOrRight * (Math.random() * 8);
+  ballSpeedY = - Math.abs((Math.sqrt(81 - ballSpeedX ** 2)));
+
   ballX = canvas.width / 2;
   ballY = canvas.height - platformHeight * 2 - ballRadius;
-
-  brickPadding = canvas.width * 0.01;
-  brickWidth = (canvas.width - brickPadding * 2 - brickPadding * (brickColumnNo - 1)) / brickColumnNo;  
-  brickHeight = canvas.height * 0.05;
-  brickOffsetTop = 100;
 
   bricks = [];
   for (let i = 0; i < brickColumnNo; i++) {
@@ -259,14 +301,7 @@ function reset() {
   }
 }
 
-
-const platformImage = new Image();
-platformImage.src = "trump.png";
-
-const brickImage = new Image();
-brickImage.src = "kamala.png";
-
-
+//funkcija koja poziva sve ostale
 function draw() {
   if(!gameOver) {
     if (ballY > canvas.height) {
@@ -280,31 +315,17 @@ function draw() {
     drawBricks();
     drawBall();
     drawPlatform();
-
-    ctx.drawImage(platformImage, platformX, platformY, platformWidth, platformHeight);
-    for (let i = 0; i < brickColumnNo; i++) {
-      for (let j = 0; j < brickRowNo; j++) {
-          let brick = bricks[i][j];
-          if (brick.status === 1) { // Prikaz cigle samo ako nije uništena
-              let brickX = brickPadding + i * (brickWidth + brickPadding);
-              let brickY = brickOffsetTop + j * (brickHeight + brickPadding);
-              brick.x = brickX;
-              brick.y = brickY;
-              ctx.drawImage(brickImage, brickX, brickY, brickWidth, brickHeight);
-          }
-      }
-  }
-
     drawScores();
     movement();
     canvasCollision();
     platformCollision();
     brickCollision();
+    resetCollisionFlag();
 
   } else if (gameOver && message != "_"){
     drawMessage();
-
   } 
+
   requestAnimationFrame(draw);
 }
 
